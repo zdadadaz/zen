@@ -4,17 +4,21 @@ from selenium import webdriver
 import re
 import pandas as pd
 import random
+from sklearn.utils import shuffle
+import requests
 
 url_cambridge = "https://dictionary.cambridge.org/zht/詞典/英語/"
 url_reverso = "https://context.reverso.net/translation/english-japanese/"
 # driver = webdriver.Chrome('./chromedriver')
 
 def queryPhrases(query):
-    driver = webdriver.Chrome('./chromedriver')
-    driver.get(url_reverso + query)
-    sel= Selector(text = driver.page_source)
+    # driver = webdriver.Chrome('./chromedriver')
+    # driver.get(url_reverso + query)
+    session = requests.Session()
+    r = session.get(url_reverso+query, headers={'User-Agent': 'Mozilla/5.0'})
+    sel= Selector(text = r.text)
     phrases = sel.xpath('//html/body/div[@id="wrapper"]/section[@id="body-content"]/div[@class="left-content"]/section[@id="examples-content"]/div/div[@class="src ltr"]/span[@class="text"]').extract()
-    driver.close()
+    # driver.close()
     return phrases
 
 def queryPhrases_cambridge(query):
@@ -29,11 +33,22 @@ def queryPhrases_cambridge(query):
     driver.close()
     return phrases
 
+def queryPhrases_cambridge_request(query):
+    r = requests.get(url_cambridge+query)
+    # print(r.text)
+    sel= Selector(text = r.text)
+    phrases = []
+    p = re.compile(r'<.*?>')
+    ph = sel.xpath('//*[@id="page-content"]/div[2]/div/div[1]/div[2]/div/div[3]/div/div/div/div[3]/div/div[2]/div/div[3]/div').extract()
+    for i in ph:
+        phrases.append(p.sub('',i))
+    return phrases
 
 data=pd.read_excel('zen.xlsx', index_col=None)
 # words number 
 data['single']=data['Q'].map(lambda x: len(x.split(" "))<=1)
 single = data[data['single']]
+single = shuffle(single)
 single['familarity'] = single['familarity'].fillna(0)
 dfout = pd.DataFrame([],columns=single.columns.values)
 single = single.sort_values('familarity')
@@ -47,8 +62,9 @@ for i in range(totnum):
         break
     query = single.iloc[i,1]
 
-    # phrases = queryPhrases(query)
-    phrases = queryPhrases_cambridge(query)
+    phrases = queryPhrases(query)
+    # phrases = queryPhrases_cambridge(query)
+    # phrases = queryPhrases_cambridge_request(query)
     if len(phrases) == 0:
         print("Cant find phrase for : " + query)
     while flag and count< len(phrases):
